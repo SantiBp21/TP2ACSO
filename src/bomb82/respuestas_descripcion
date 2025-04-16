@@ -1,0 +1,48 @@
+Santiago Blanco Pan
+sblancopan@udesa.edu.ar
+
+fase 1:
+la fase 1 consiste en que el usuario ingrese un string especifico para pasar. se ve en las instrucciones que llama a una funcion <strings_not_equal> y que justo antes de llamar a la funcion hace un load en el registro rsi.
+
+usando x/s $rsi revela el string que compara con el input y es el que hay que ingresar para pasar de fase.
+
+input:
+Junta esperencia en la vida  Porque nada ensenha tanto Como el sufrir y el llorar
+
+
+fase 2:
+esta fase consiste de una primera parte que chequea que el input contenga dos palabras (chequea que haya un espacio en el medio), luego almacena cada valor como numero con <strtoq> por separado. Llamemos a valor del input n1 y n2 respectivamente, se carga n1 + n2 -0x20 (32) al edi, y se entra en la funcion <misterio>. dentro de esta funcion hace un numero de operaciones, primero se hace un loop el cual en cada iteracion le va extrayendo el bit de mas a la derecha al valor que teniamos en edi (ahora en eax) 32 veces, y lo suma edx, de manera que termina con la cuenta de cuantos de esos bits eran 1s, y despues hace un compare con 0xb (11) y si no son iguales salta a la bomba. Por ultimo, hace un xor entre n1 y n2 y si el resultado no es negativo (osea que uno y solo uno sea negativo), salta a la bomba. 
+necesitamos entonces que n1 + n2 - 32 tenga exactamente 11 bits en binario, y que n1 o n2 sea negativo y el otro no. Probando un poco sale que una posible solucion es n1 = 2080, n2= -1
+
+2080 -1
+
+
+fase 3:
+el primer obstaculo en la fase 3 es un compare que pide que eax sea igual a 2 tras un llamado a la funcion <__isoc99_sscanf>, probando distintos inputs se puede confirmar que el valor de eax depende de cuantas palabras distintas contenga el input, en este caso deben ser 2.
+
+luego vienen las funciones readlines y cuenta. readlines simplemente almacena en un arreglo todas las palabras del archivo palabras.txt, esto se puede ver con:
+x/s *((char**) $rbp+0xn) donde podemos variar n para ver la n palabra en el arreglo.
+cuenta es un poco mas complicada, consiste de un loop que busca si la palabra ingresada coincide con la palabra que encuentra, y luego si la iteracion en la que se encontro cumple con que fue la misma que el numero que ingreso el usuario, y que es un numero entre 7 y 11. 
+
+En un principio printeando el registro r14 se puede ver la primera palabra ingresada. En rsi, antes del compare que salta a la bomba, se puede ver una palabra del arreglo diferente a la ingresada, si continuamos a la siguiente iteracion se ve que esta cambia y cada vez son palabras mas parecidas a la nuestra. buscando el numero de la palabra en el archivo (tambien guardada en ebx) se puede ver que esta haciendo + o - la mitad del indice dependiendo de si el indice de la palabra ingresada es mayor o menor. Sabemos que debe ser entre las iteraciones 7 y 11 porque el valor que contiene el numero de iteracion (guardado en r8 durante el loop, movido a [rsp+0x14] luego), es comparado con 0xb (11) en cada iteracion, despues de salir de la funcion cuenta es comparado con nuestro numero ingresado, y finalmente con 0x6 en un less or equal. Sabiendo todo esto uno puede iterar hasta ver que la funcion cuenta encontro su palabra y revisar en que iteracion lo encontro, aunque tambien uno podria simplemente probar palabras, e ir ingresando numeros entre 7 y 11 y no tardaria demasiado. 
+
+baladrar 7
+
+
+
+
+fase 4:
+esta fase pide dos numeros enteros e itera sobre un arreglo de 16 elementos comenzando por el indice del primer numero que hayamos ingresado haciendole el modulo de 16. itera hasta que el indice sea 15 y luego chequea que hayan sido 9 iteraciones o sino explota la bomba. finalmente, el segundo valor ingresado debe ser igual a la suma de los elementos de arreglo los cuales fueron recorridos. El arreglo no se recorre en orden, sino que cada valor es un numero entre 0 y 15, y el valor del arreglo en el indice actual sera el indice al que se ira en la siguiente iteracion. 
+
+primero se llama a <__isoc99_sscanf> en este caso para chequear que sean mas de 2 valores los ingresados, que viendo lo que sigue se puede intuir que deben ser numeros. el primero de estos se valores sea almacena en eax y se le realiza un and con una mascara que extrae sus bits menos significagtivos lo cual esencialmente es como aplicar un modulo en binario, en este caso mod 16. Luego hace un chequeo de que a tras el modulo no sea igual a 15 o explota. Se ve como inicializa exc como 0, al cual mas adelante le ira sumando los valores del arreglo que se loadean al eax con [rsi+rax*4] (rsi donde esta el arreglo en memoria, rax el indice), e inicializa edx al cual le ira sumando de a 1, este es el contador. Se loadea el arreglo al rsi, este se puede imprimir con:
+(gdb) x/16dw $rsi
+0x4c5200 <array.3483>:	7	4	6	8
+0x4c5210 <array.3483+16>:	13	10	15	9
+0x4c5220 <array.3483+32>:	0	12	3	5
+0x4c5230 <array.3483+48>:	2	11	1	14
+una vez que el indice es 15 deja de loopear, chequea si el contador es igual a 9, y por ultimo compara si la suma acumulada de los valores que se iteraron es igual al segundo valor ingresado. Para encontrar entonces el input hay que probar indices iniciales y ver cual llega al indice 15 en la novena iteracion, y chequear en cuanto quedo la suma acumulada en $exc.
+
+10 62
+
+
+
